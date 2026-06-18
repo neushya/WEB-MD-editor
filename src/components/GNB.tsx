@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, Search, FolderOpen, FilePlus, Save, FileType, LogOut, Undo2, Redo2, RotateCcw } from 'lucide-react';
+import { Menu, Search, FolderOpen, FolderPlus, FolderMinus, FilePlus, Save, FileType, LogOut, Undo2, Redo2, RotateCcw, ChevronRight, X } from 'lucide-react';
 import type { ShortcutItem } from './ShortcutSettings';
 
 interface GNBProps {
@@ -16,6 +16,9 @@ interface GNBProps {
   onOpenTheme: () => void;
   shortcuts: ShortcutItem[];
   onReset: () => void; // 초기화 버튼 연동 추가
+  onAddFolder: () => void;
+  onRemoveRoot: (id: string) => void;
+  roots: { id: string; name: string }[];
 }
 
 interface MenuItem {
@@ -24,13 +27,16 @@ interface MenuItem {
   icon?: React.ReactNode;
   action?: () => void;
   divider?: boolean;
+  submenu?: string; // 하위 메뉴 식별자 (예: 'remove-folder')
 }
 
-const GNB: React.FC<GNBProps> = ({ 
-  onNewFile, onOpenFile, onOpenFolder, onSave, onSaveAs, onClose, 
-  onUndo, onRedo, onFind, onOpenShortcuts, onOpenTheme, shortcuts, onReset
+const GNB: React.FC<GNBProps> = ({
+  onNewFile, onOpenFile, onOpenFolder, onSave, onSaveAs, onClose,
+  onUndo, onRedo, onFind, onOpenShortcuts, onOpenTheme, shortcuts, onReset,
+  onAddFolder, onRemoveRoot, roots
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState('');
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
@@ -54,6 +60,8 @@ const GNB: React.FC<GNBProps> = ({
         { label: '새 탭 만들기', id: 'new-file', icon: <FilePlus size={14} />, action: onNewFile },
         { label: '파일 열기', id: 'open-file', icon: <FileType size={14} />, action: onOpenFile },
         { label: '폴더 열기', id: 'open-folder', icon: <FolderOpen size={14} />, action: onOpenFolder },
+        { label: '폴더 추가', icon: <FolderPlus size={14} />, action: onAddFolder },
+        { label: '폴더 삭제', icon: <FolderMinus size={14} />, submenu: 'remove-folder' },
         { divider: true },
         { label: '저장', id: 'save', icon: <Save size={14} />, action: onSave },
         { label: '다른 이름으로 저장', id: 'save-as', icon: <Save size={14} />, action: onSaveAs },
@@ -95,17 +103,54 @@ const GNB: React.FC<GNBProps> = ({
               {menu.name}
             </button>
             {activeMenu === menu.name && (
-              <div 
+              <div
                 className="absolute top-full left-0 w-64 bg-[var(--bg-sidebar)] border border-[var(--border-base)] shadow-2xl py-1"
-                onMouseLeave={() => setActiveMenu(null)}
+                onMouseLeave={() => { setActiveMenu(null); setActiveSubmenu(null); }}
               >
-                {menu.items.map((item, idx) => (
-                  item.divider ? (
-                    <div key={idx} className="h-px bg-[var(--border-base)] my-1 mx-1" />
-                  ) : (
-                    <button 
-                      key={item.label} 
-                      onClick={() => { item.action?.(); setActiveMenu(null); }}
+                {menu.items.map((item, idx) => {
+                  if (item.divider) {
+                    return <div key={idx} className="h-px bg-[var(--border-base)] my-1 mx-1" />;
+                  }
+                  // 하위 메뉴 항목 (폴더 삭제 → 현재 루트 목록)
+                  if (item.submenu === 'remove-folder') {
+                    return (
+                      <div
+                        key={item.label}
+                        className="relative"
+                        onMouseEnter={() => setActiveSubmenu('remove-folder')}
+                        onMouseLeave={() => setActiveSubmenu(null)}
+                      >
+                        <button className="w-full flex items-center px-4 py-1.5 text-[11px] hover:bg-[var(--bg-item-active)] text-left group">
+                          {item.icon && <span className="mr-3 opacity-70 scale-90">{item.icon}</span>}
+                          <span className="flex-1">{item.label}</span>
+                          <ChevronRight size={12} className="text-[var(--text-muted)] group-hover:text-[var(--text-main)]" />
+                        </button>
+                        {activeSubmenu === 'remove-folder' && (
+                          <div className="absolute top-0 left-full w-56 bg-[var(--bg-sidebar)] border border-[var(--border-base)] shadow-2xl py-1 max-h-64 overflow-auto z-10">
+                            {roots.length === 0 ? (
+                              <div className="px-4 py-1.5 text-[11px] text-[var(--text-muted)] italic">열린 폴더 없음</div>
+                            ) : (
+                              roots.map(r => (
+                                <button
+                                  key={r.id}
+                                  onClick={() => { onRemoveRoot(r.id); setActiveSubmenu(null); setActiveMenu(null); }}
+                                  className="w-full flex items-center px-4 py-1.5 text-[11px] hover:bg-[var(--bg-item-active)] text-left"
+                                  title={`'${r.name}' 폴더 삭제`}
+                                >
+                                  <X size={12} className="mr-2 opacity-70 shrink-0" />
+                                  <span className="flex-1 truncate">{r.name}</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => { item.action?.(); setActiveMenu(null); setActiveSubmenu(null); }}
                       className="w-full flex items-center px-4 py-1.5 text-[11px] hover:bg-[var(--bg-item-active)] text-left group"
                     >
                       {item.icon && <span className="mr-3 opacity-70 scale-90">{item.icon}</span>}
@@ -116,8 +161,8 @@ const GNB: React.FC<GNBProps> = ({
                         </span>
                       )}
                     </button>
-                  )
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

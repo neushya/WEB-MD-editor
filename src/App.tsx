@@ -47,8 +47,8 @@ function App() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [rootHandle, setRootHandle] = useState<FileSystemDirectoryHandle | null>(null);
-  const [rootName, setRootName] = useState<string>("No Folder");
+  // 다중 루트 워크스페이스: 각 루트는 세션 내 안정적 id + 디렉토리 핸들
+  const [roots, setRoots] = useState<{ id: string; handle: FileSystemDirectoryHandle }[]>([]);
   const [viewMode, setViewMode] = useState<'split' | 'editor' | 'preview'>('split');
   const [sidebarWidth, setSidebarWidth] = useState(200);
   const [isPrettyPrint, setIsPrettyPrint] = useState(true);
@@ -89,7 +89,11 @@ function App() {
     const initializeApp = async () => {
       try {
         const workspace = await get(WORKSPACE_KEY);
-        if (workspace) { setRootHandle(workspace); setRootName(workspace.name); }
+        if (workspace) {
+          // 하위호환: 기존 단일 핸들 저장분을 배열로 승격. id는 세션마다 재생성.
+          const handles: FileSystemDirectoryHandle[] = Array.isArray(workspace) ? workspace : [workspace];
+          setRoots(handles.map(h => ({ id: Math.random().toString(36).substring(7), handle: h })));
+        }
         const savedState = await get(TABS_STATE_KEY);
         if (savedState && savedState.tabs) {
             const cleanedTabs = savedState.tabs.map((t: Tab) => t.isPdf ? { ...t, content: '' } : t);
@@ -163,12 +167,39 @@ function App() {
     } catch (err) { if ((err as Error).name !== 'AbortError') console.error("File open failed:", err); }
   };
 
+  // 폴더 열기: 워크스페이스를 해당 폴더 단독으로 교체 (기존 동작 유지)
   const handleFolderOpen = async () => {
     if (isMobile) { alert("모바일 브라우저에서는 폴더 열기를 지원하지 않습니다. 파일 열기를 이용해 주세요."); return; }
     try {
       const handle = await fileSystemService.openDirectory();
-      if (handle) { setRootHandle(handle); setRootName(handle.name); await set(WORKSPACE_KEY, handle); }
+      if (handle) {
+        const next = [{ id: Math.random().toString(36).substring(7), handle }];
+        setRoots(next);
+        await set(WORKSPACE_KEY, next.map(r => r.handle));
+      }
     } catch (err) { console.error("Folder open failed:", err); }
+  };
+
+  // 폴더 추가: 기존 루트 목록에 형제로 추가 (동일 폴더는 isSameEntry로 중복 차단)
+  const handleAddFolder = async () => {
+    if (isMobile) { alert("모바일 브라우저에서는 폴더 추가를 지원하지 않습니다."); return; }
+    try {
+      const handle = await fileSystemService.openDirectory();
+      if (!handle) return;
+      for (const r of roots) {
+        try { if (await r.handle.isSameEntry(handle)) { alert("이미 추가된 폴더입니다."); return; } } catch { /* 비교 실패 시 중복 아님으로 간주 */ }
+      }
+      const next = [...roots, { id: Math.random().toString(36).substring(7), handle }];
+      setRoots(next);
+      await set(WORKSPACE_KEY, next.map(r => r.handle));
+    } catch (err) { console.error("Folder add failed:", err); }
+  };
+
+  // 폴더 삭제: 해당 루트만 목록에서 제거 (열기/추가 구분 없이 균일)
+  const handleRemoveRoot = async (id: string) => {
+    const next = roots.filter(r => r.id !== id);
+    setRoots(next);
+    await set(WORKSPACE_KEY, next.map(r => r.handle));
   };
 
   const handleFileOpen = async (handle: FileSystemFileHandle) => {
@@ -309,14 +340,15 @@ function App() {
   // Desktop layout branch with pc-layout-root class and APP_VERSION key
   return (
     <div key={`desktop-root-${APP_VERSION}`} className="pc-layout-root flex flex-col h-[100dvh] w-full bg-[var(--bg-app)] overflow-hidden text-[var(--text-main)] font-sans transition-colors duration-200">
-      <GNB 
+      <GNB
         onNewFile={handleNewFile} onOpenFile={handleOpenFile} onOpenFolder={handleFolderOpen} onSave={() => handleSave()} onSaveAs={handleSaveAs}
         onClose={() => window.close()} onUndo={() => editorRef.current?.undo()} onRedo={() => editorRef.current?.redo()} onFind={handleFind}
         onOpenShortcuts={() => setIsShortcutModalOpen(true)} onOpenTheme={() => setIsThemeModalOpen(true)} shortcuts={shortcuts}
         onReset={handleReset}
+        onAddFolder={handleAddFolder} onRemoveRoot={handleRemoveRoot} roots={roots.map(r => ({ id: r.id, name: r.handle.name }))}
       />
       <div className="flex-1 flex overflow-hidden w-full relative">
-        <Sidebar rootHandle={rootHandle} rootName={rootName} onFileOpen={handleFileOpen} onFolderOpen={handleFolderOpen} activeFileHandle={activeTab?.handle || null} width={sidebarWidth} onToggle={() => setSidebarWidth(0)} />
+        <Sidebar roots={roots} onFileOpen={handleFileOpen} onFolderOpen={handleFolderOpen} onAddFolder={handleAddFolder} onRemoveRoot={handleRemoveRoot} activeFileHandle={activeTab?.handle || null} width={sidebarWidth} onToggle={() => setSidebarWidth(0)} />
         {sidebarWidth > 0 && ( <div className="w-[5px] h-full bg-[var(--border-base)] hover:bg-orange-400 active:bg-orange-600 cursor-col-resize shrink-0 transition-colors z-10" onMouseDown={startResizing} /> )}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[var(--bg-app)]">
           <TabBar tabs={tabs} activeTabId={activeTabId} onTabSelect={setActiveTabId} onTabClose={handleTabClose} viewMode={viewMode} setViewMode={setViewMode} isPrettyPrint={isPrettyPrint} onTogglePrettyPrint={() => setIsPrettyPrint(!isPrettyPrint)} isSidebarCollapsed={sidebarWidth === 0} onToggleSidebar={() => setSidebarWidth(200)} />
