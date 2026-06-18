@@ -11,6 +11,7 @@ import ShortcutSettings from "./components/ShortcutSettings";
 import type { ShortcutItem } from "./components/ShortcutSettings";
 import ThemeSettings from "./components/ThemeSettings";
 import MobileLayout from "./components/MobileLayout";
+import CompareView from "./components/CompareView";
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { fileSystemService } from "./services/FileSystemService";
 import { get, set, del } from "idb-keyval";
@@ -61,6 +62,7 @@ function App() {
     return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
   });
 
+  const [isCompareOpen, setIsCompareOpen] = useState(false); // 파일 비교 모드 (PC 전용)
   const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -346,6 +348,7 @@ function App() {
         onOpenShortcuts={() => setIsShortcutModalOpen(true)} onOpenTheme={() => setIsThemeModalOpen(true)} shortcuts={shortcuts}
         onReset={handleReset}
         onAddFolder={handleAddFolder} onRemoveRoot={handleRemoveRoot} roots={roots.map(r => ({ id: r.id, name: r.handle.name }))}
+        onOpenCompare={() => setIsCompareOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden w-full relative">
         <Sidebar roots={roots} onFileOpen={handleFileOpen} onFolderOpen={handleFolderOpen} onAddFolder={handleAddFolder} onRemoveRoot={handleRemoveRoot} activeFileHandle={activeTab?.handle || null} width={sidebarWidth} onToggle={() => setSidebarWidth(0)} />
@@ -353,7 +356,9 @@ function App() {
         <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-[var(--bg-app)]">
           <TabBar tabs={tabs} activeTabId={activeTabId} onTabSelect={setActiveTabId} onTabClose={handleTabClose} viewMode={viewMode} setViewMode={setViewMode} isPrettyPrint={isPrettyPrint} onTogglePrettyPrint={() => setIsPrettyPrint(!isPrettyPrint)} isSidebarCollapsed={sidebarWidth === 0} onToggleSidebar={() => setSidebarWidth(200)} />
           <main className="flex-1 overflow-hidden relative">
-            {activeTab ? (
+            {isCompareOpen ? (
+              <CompareView isDarkMode={isDarkMode} onClose={() => setIsCompareOpen(false)} />
+            ) : activeTab ? (
               activeTab.isPdf ? (
                 <div className="h-full w-full bg-[#525659]"> <iframe src={`${activeTab.content}#view=FitH`} className="w-full h-full border-none" title={activeTab.name} /> </div>
               ) : (

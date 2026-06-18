@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, Search, FolderOpen, FolderPlus, FolderMinus, FilePlus, Save, FileType, LogOut, Undo2, Redo2, RotateCcw, ChevronRight, X } from 'lucide-react';
+import { Menu, Search, FolderOpen, FolderPlus, FolderMinus, FilePlus, Save, FileType, LogOut, Undo2, Redo2, RotateCcw, ChevronRight, X, GitCompare } from 'lucide-react';
 import type { ShortcutItem } from './ShortcutSettings';
 
 interface GNBProps {
@@ -19,6 +19,7 @@ interface GNBProps {
   onAddFolder: () => void;
   onRemoveRoot: (id: string) => void;
   roots: { id: string; name: string }[];
+  onOpenCompare: () => void;
 }
 
 interface MenuItem {
@@ -33,7 +34,7 @@ interface MenuItem {
 const GNB: React.FC<GNBProps> = ({
   onNewFile, onOpenFile, onOpenFolder, onSave, onSaveAs, onClose,
   onUndo, onRedo, onFind, onOpenShortcuts, onOpenTheme, shortcuts, onReset,
-  onAddFolder, onRemoveRoot, roots
+  onAddFolder, onRemoveRoot, roots, onOpenCompare
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -62,6 +63,8 @@ const GNB: React.FC<GNBProps> = ({
         { label: '폴더 열기', id: 'open-folder', icon: <FolderOpen size={14} />, action: onOpenFolder },
         { label: '폴더 추가', icon: <FolderPlus size={14} />, action: onAddFolder },
         { label: '폴더 삭제', icon: <FolderMinus size={14} />, submenu: 'remove-folder' },
+        { divider: true },
+        { label: '파일 비교', icon: <GitCompare size={14} />, action: onOpenCompare },
         { divider: true },
         { label: '저장', id: 'save', icon: <Save size={14} />, action: onSave },
         { label: '다른 이름으로 저장', id: 'save-as', icon: <Save size={14} />, action: onSaveAs },
